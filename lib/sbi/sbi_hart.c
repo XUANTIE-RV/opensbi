@@ -152,8 +152,14 @@ static void mstatus_init(struct sbi_scratch *scratch)
 				  ENVCFG_CBIE_INV << ENVCFG_CBIE_SHIFT)
 #if __riscv_xlen > 32
 		__set_menvcfg_ext(SBI_HART_EXT_SVPBMT, ENVCFG_PBMTE)
-#endif
 		__set_menvcfg_ext(SBI_HART_EXT_SSTC, ENVCFG_STCE)
+#else
+		unsigned long menvcfgh_val;
+		menvcfgh_val = csr_read(CSR_MENVCFGH);
+		menvcfgh_val |= ENVCFGH_PBMTE;
+		menvcfgh_val |= ENVCFGH_STCE;
+		csr_write(CSR_MENVCFGH, menvcfgh_val);
+#endif
 		__set_menvcfg_ext(SBI_HART_EXT_SMCDELEG, ENVCFG_CDE);
 		__set_menvcfg_ext(SBI_HART_EXT_SVADU, ENVCFG_ADUE);
 
@@ -168,7 +174,11 @@ static void mstatus_init(struct sbi_scratch *scratch)
 		if (sbi_hart_has_extension(scratch, SBI_HART_EXT_SVADE))
 			menvcfg_val &= ~ENVCFG_ADUE;
 
+#if __riscv_xlen > 32
 		csr_write64(CSR_MENVCFG, menvcfg_val);
+#else
+		csr_write(CSR_MENVCFG, menvcfg_val);
+#endif
 
 		/* Enable S-mode access to seed CSR */
 		if (sbi_hart_has_extension(scratch, SBI_HART_EXT_ZKR)) {
