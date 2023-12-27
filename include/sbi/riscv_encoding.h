@@ -226,8 +226,13 @@
 
 #define MHPMEVENT_SSCOF_MASK		_ULL(0xFF00000000000000)
 
+#if __riscv_xlen > 32
 #define ENVCFG_STCE			(_ULL(1) << 63)
 #define ENVCFG_PBMTE			(_ULL(1) << 62)
+#else
+#define ENVCFGH_STCE			(_UL(1) << 31)
+#define ENVCFGH_PBMTE			(_UL(1) << 30)
+#endif
 #define ENVCFG_ADUE_SHIFT		61
 #define ENVCFG_ADUE			(_ULL(1) << ENVCFG_ADUE_SHIFT)
 #define ENVCFG_CDE			(_ULL(1) << 60)
