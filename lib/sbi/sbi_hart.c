@@ -141,6 +141,11 @@ static void mstatus_init(struct sbi_scratch *scratch)
 		 */
 #if __riscv_xlen > 32
 		menvcfg_val |= ENVCFG_PBMTE;
+#else
+		unsigned long menvcfgh_val;
+		menvcfgh_val = csr_read(CSR_MENVCFGH);
+		menvcfgh_val |= ENVCFGH_PBMTE;
+		csr_write(CSR_MENVCFGH, menvcfgh_val);
 #endif
 
 		/*
