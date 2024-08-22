@@ -304,14 +304,19 @@ static int pmu_ctr_enable_irq_hw(int ctr_idx)
 	unsigned long mip_val;
 	unsigned long of_mask;
 
-	if (ctr_idx < 3 || ctr_idx >= SBI_PMU_HW_CTR_MAX)
+	if (ctr_idx >= SBI_PMU_HW_CTR_MAX)
 		return SBI_EFAIL;
 
 #if __riscv_xlen == 32
 	mhpmevent_csr = CSR_MHPMEVENT3H  + ctr_idx - 3;
 	of_mask = (uint32_t)~MHPMEVENTH_OF;
 #else
-	mhpmevent_csr = CSR_MHPMEVENT3 + ctr_idx - 3;
+	if (ctr_idx == 0)
+		mhpmevent_csr = CSR_MHPMEVENT0;
+	else if (ctr_idx == 2)
+		mhpmevent_csr = CSR_MHPMEVENT2;
+	else
+		mhpmevent_csr = CSR_MHPMEVENT3 + ctr_idx - 3;
 	of_mask = ~MHPMEVENT_OF;
 #endif
 
@@ -514,7 +519,7 @@ static int pmu_ctr_stop_fw(struct sbi_pmu_hart_state *phs,
 
 static int pmu_reset_hw_mhpmevent(int ctr_idx)
 {
-	if (ctr_idx < 3 || ctr_idx >= SBI_PMU_HW_CTR_MAX)
+	if (ctr_idx >= SBI_PMU_HW_CTR_MAX)
 		return SBI_EFAIL;
 #if __riscv_xlen == 32
 	csr_write_num(CSR_MHPMEVENT3 + ctr_idx - 3, 0);
@@ -522,7 +527,12 @@ static int pmu_reset_hw_mhpmevent(int ctr_idx)
 				   SBI_HART_EXT_SSCOFPMF))
 		csr_write_num(CSR_MHPMEVENT3H + ctr_idx - 3, 0);
 #else
-	csr_write_num(CSR_MHPMEVENT3 + ctr_idx - 3, 0);
+	if (ctr_idx == 0)
+		csr_write_num(CSR_MHPMEVENT0, 0);
+	else if (ctr_idx == 2)
+		csr_write_num(CSR_MHPMEVENT2, 0);
+	else
+		csr_write_num(CSR_MHPMEVENT3 + ctr_idx - 3, 0);
 #endif
 
 	return 0;
@@ -584,7 +594,7 @@ static int pmu_update_hw_mhpmevent(struct sbi_pmu_hw_event *hw_evt, int ctr_idx,
 	/* Get the final mhpmevent value to be written from platform */
 	mhpmevent_val = sbi_platform_pmu_xlate_to_mhpmevent(plat, eindex, data);
 
-	if (!mhpmevent_val || ctr_idx < 3 || ctr_idx >= SBI_PMU_HW_CTR_MAX)
+	if (!mhpmevent_val || ctr_idx >= SBI_PMU_HW_CTR_MAX)
 		return SBI_EFAIL;
 
 	/**
@@ -607,7 +617,12 @@ static int pmu_update_hw_mhpmevent(struct sbi_pmu_hw_event *hw_evt, int ctr_idx,
 		csr_write_num(CSR_MHPMEVENT3H + ctr_idx - 3,
 			      mhpmevent_val >> BITS_PER_LONG);
 #else
-	csr_write_num(CSR_MHPMEVENT3 + ctr_idx - 3, mhpmevent_val);
+	if (ctr_idx == 0)
+		csr_write_num(CSR_MHPMEVENT0, mhpmevent_val);
+	else if (ctr_idx == 2)
+		csr_write_num(CSR_MHPMEVENT2, mhpmevent_val);
+	else
+		csr_write_num(CSR_MHPMEVENT3 + ctr_idx - 3, mhpmevent_val);
 #endif
 
 	return 0;
