@@ -37,6 +37,7 @@ static int ipi_clint_cold_init(void *fdt, int nodeoff,
 static const struct fdt_match ipi_clint_match[] = {
 	{ .compatible = "riscv,clint0" },
 	{ .compatible = "sifive,clint0" },
+	{ .compatible = "thead,c900-clint" },
 	{ },
 };
 
