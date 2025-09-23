@@ -756,6 +756,7 @@ int sbi_hart_reinit(struct sbi_scratch *scratch)
 int sbi_hart_init(struct sbi_scratch *scratch, bool cold_boot)
 {
 	int rc;
+	struct sbi_trap_info trap = {0};
 
 	/*
 	 * Clear mip CSR before proceeding with init to avoid any spurious
@@ -786,6 +787,14 @@ int sbi_hart_init(struct sbi_scratch *scratch, bool cold_boot)
 	rc = delegate_traps(scratch);
 	if (rc)
 		return rc;
+
+	// TODO: check smmtt available
+	csr_read_allowed(CSR_MSDCFG, &trap);
+	if (!trap.cause) {
+		// SSM=0; SRL=SML=5
+		csr_clear(CSR_MSDCFG, MSDCFG_SSM);
+		csr_set(CSR_MSDCFG, (5 << MSDCFG_SRL_SHIFT) | (5 << MSDCFG_SML_SHIFT));
+	}
 
 	return sbi_hart_reinit(scratch);
 }
