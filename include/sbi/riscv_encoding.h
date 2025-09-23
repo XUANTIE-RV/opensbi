@@ -736,6 +736,15 @@
 #define MSECCFG_SSEED_SHIFT		(9)
 #define MSECCFG_SSEED			(_UL(1) << MSECCFG_SSEED_SHIFT)
 
+/* msdcfg */
+#define CSR_MSDCFG			0xbd0
+#define MSDCFG_SSM_SHIFT		(19)
+#define MSDCFG_SRL_SHIFT		(20)
+#define MSDCFG_SML_SHIFT		(24)
+#define MSDCFG_SSM			(_UL(1) << MSDCFG_SSM_SHIFT)
+#define MSDCFG_SRL_MASK		GENMASK_ULL(23, 20)
+#define MSDCFG_SML_MASK		GENMASK_ULL(27, 24)
+
 /* Counter Overflow CSR */
 #define CSR_SCOUNTOVF			0xda0
 
