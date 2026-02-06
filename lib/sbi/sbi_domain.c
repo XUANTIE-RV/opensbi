@@ -207,6 +207,13 @@ unsigned int sbi_domain_get_smepmp_flags(struct sbi_domain_memregion *reg)
 			pmp_flags |= PMP_W;
 		if (reg->flags & SBI_DOMAIN_MEMREGION_SU_EXECUTABLE)
 			pmp_flags |= PMP_X;
+		if (reg->flags & SBI_DOMAIN_MEMREGION_ENF_PERMISSIONS) {
+			/*
+			* If permissions are to be enforced for all modes on
+			* this region, the lock bit should be set.
+			*/
+			pmp_flags |= PMP_L;
+		}
 	} else {
 		rstart = reg->base;
 		rend = (reg->order < __riscv_xlen) ? rstart + ((1UL << reg->order) - 1) : -1UL;
