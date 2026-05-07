@@ -215,6 +215,10 @@
 
 #endif
 
+#define MNSTATUS_NMIE			(_UL(0x8))
+#define MNSTATUS_MNPV			(_UL(0x80))
+#define MNSTATUS_MNPP			(_UL(0x1800))
+
 #define MHPMEVENT_SSCOF_MASK		_ULL(0xFF00000000000000)
 
 #if __riscv_xlen > 32
@@ -805,6 +809,12 @@
 #define CSR_VL				0xc20
 #define CSR_VTYPE			0xc21
 #define CSR_VLENB			0xc22
+
+/* Smrnmi extension registers */
+#define CSR_MNSCRATCH				0x740
+#define CSR_MNEPC					0x741
+#define CSR_MNCAUSE					0x742
+#define CSR_MNSTATUS				0x744
 
 /* ===== Trap/Exception Causes ===== */
 
