@@ -14,6 +14,7 @@
 #include <xuantie/xuantie_pmc.h>
 #include <xuantie/xuantie_link.h>
 #include <xuantie/xuantie_pmp_ext.h>
+#include <xuantie/xuantie_pmu.h>
 
 static u32 gquirk = 0;
 
@@ -23,6 +24,10 @@ int xuantie_early_init(bool cold_boot)
 		if (gquirk & QUIRK_XUANTIE_PMP_EXT)
 			xuantie_pmp_ext_cfg();
 	}
+
+	/* mxstatus[8] OFINT is per-hart: enable on every boot path. */
+	if (gquirk & QUIRK_XUANTIE_PMU)
+		xuantie_pmu_enable_ofint();
 
 	return generic_early_init(cold_boot);
 }
@@ -34,6 +39,8 @@ int xuantie_final_init(bool cold_boot)
 			xuantie_pmc_device_init();
 		if (gquirk & QUIRK_XUANTIE_LINK)
 			xuantie_link_pmu_device_init();
+		if (gquirk & QUIRK_XUANTIE_PMU)
+			xuantie_pmu_register_device();
 	}
 
 	return generic_final_init(cold_boot);
@@ -52,7 +59,8 @@ static int xuantie_dummy_platform_init(const void *fdt, int nodeoff,
 }
 
 static const struct xuantie_generic_quirks xuantie_quirks = {
-	.quirk = QUIRK_XUANTIE_PMC | QUIRK_XUANTIE_LINK | QUIRK_XUANTIE_PMP_EXT,
+	.quirk = QUIRK_XUANTIE_PMC | QUIRK_XUANTIE_LINK | QUIRK_XUANTIE_PMP_EXT |
+		 QUIRK_XUANTIE_PMU,
 };
 
 static const struct xuantie_generic_quirks xuantie_pmc_quirks = {
@@ -67,10 +75,15 @@ static const struct xuantie_generic_quirks xuantie_pmp_ext_quirks = {
 	.quirk = QUIRK_XUANTIE_PMP_EXT,
 };
 
+static const struct xuantie_generic_quirks xuantie_pmu_quirks = {
+	.quirk = QUIRK_XUANTIE_PMU,
+};
+
 static const struct fdt_match xuantie_dummy_match[] = {
 	{ .compatible = "xuantie,dummy", .data = &xuantie_quirks },
 	{ .compatible = "xuantie,pmc", .data = &xuantie_pmc_quirks },
 	{ .compatible = "xuantie,link", .data = &xuantie_link_quirks },
+	{ .compatible = "xuantie,pmu", .data = &xuantie_pmu_quirks },
 	{ .compatible = "riscv-virtio",  .data = &xuantie_pmp_ext_quirks }, // qemu debug
 	{ },
 };
