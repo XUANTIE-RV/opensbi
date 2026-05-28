@@ -656,6 +656,9 @@
 #define CSR_MCOUNTINHIBIT		0x320
 #define CSR_MCYCLECFG			0x321
 #define CSR_MINSTRETCFG			0x322
+/* XuanTie vendor: per-counter event regs for fixed mcycle/minstret. */
+#define CSR_MHPMEVENT0			0x7E0
+#define CSR_MHPMEVENT2			0x7E1
 #define CSR_MHPMEVENT3			0x323
 #define CSR_MHPMEVENT4			0x324
 #define CSR_MHPMEVENT5			0x325
@@ -689,6 +692,9 @@
 /* For RV32 */
 #define CSR_MCYCLECFGH			0x721
 #define CSR_MINSTRETCFGH		0x722
+/* XuanTie vendor: high half of mhpmevent0/2 (for OF/INH bits on RV32). */
+#define CSR_MHPMEVENT0H			0x7E2
+#define CSR_MHPMEVENT2H			0x7E3
 #define CSR_MHPMEVENT3H			0x723
 #define CSR_MHPMEVENT4H			0x724
 #define CSR_MHPMEVENT5H			0x725
