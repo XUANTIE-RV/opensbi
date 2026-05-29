@@ -22,7 +22,7 @@ static int irqchip_plic_update_context_map(const void *fdt, int nodeoff,
 {
 	const fdt32_t *val;
 	u32 phandle, hwirq, hartid, hartindex;
-	int i, err, count, cpu_offset, cpu_intc_offset;
+	int i, count;
 
 	val = fdt_getprop(fdt, nodeoff, "interrupts-extended", &count);
 	if (!val || count < sizeof(fdt32_t))
@@ -33,16 +33,10 @@ static int irqchip_plic_update_context_map(const void *fdt, int nodeoff,
 		phandle = fdt32_to_cpu(val[i]);
 		hwirq = fdt32_to_cpu(val[i + 1]);
 
-		cpu_intc_offset = fdt_node_offset_by_phandle(fdt, phandle);
-		if (cpu_intc_offset < 0)
+		if (hwirq != IRQ_M_EXT && hwirq != IRQ_S_EXT)
 			continue;
 
-		cpu_offset = fdt_parent_offset(fdt, cpu_intc_offset);
-		if (cpu_offset < 0)
-			continue;
-
-		err = fdt_parse_hart_id(fdt, cpu_offset, &hartid);
-		if (err)
+		if (fdt_parse_hart_id_by_phandle(fdt, phandle, &hartid))
 			continue;
 
 		hartindex = sbi_hartid_to_hartindex(hartid);
