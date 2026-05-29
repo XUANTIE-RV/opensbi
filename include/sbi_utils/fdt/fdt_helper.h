@@ -48,6 +48,8 @@ bool fdt_node_is_enabled(const void *fdt, int nodeoff);
 
 int fdt_parse_hart_id(const void *fdt, int cpu_offset, u32 *hartid);
 
+int fdt_parse_hart_id_by_phandle(const void *fdt, u32 phandle, u32 *hartid);
+
 int fdt_parse_max_enabled_hart_id(const void *fdt, u32 *max_hartid);
 
 int fdt_parse_cbom_block_size(const void *fdt, int cpu_offset, unsigned long  *cbom_block_size);

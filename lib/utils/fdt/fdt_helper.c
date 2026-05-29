@@ -246,6 +246,79 @@ int fdt_parse_hart_id(const void *fdt, int cpu_offset, u32 *hartid)
 	return 0;
 }
 
+struct fdt_cpu_intc_entry {
+	u32 phandle;
+	u32 hartid;
+};
+
+static struct {
+	const void *fdt;
+	unsigned int n_entries;
+	struct fdt_cpu_intc_entry entries[SBI_HARTMASK_MAX_BITS];
+} fdt_cpu_intc_cache;
+
+static void fdt_cpu_intc_cache_build(const void *fdt)
+{
+	int cpus_offset, cpu_offset, intc_offset, len;
+	const fdt32_t *prop;
+	unsigned int n = 0;
+	u32 hartid;
+
+	if (!fdt || fdt_cpu_intc_cache.fdt == fdt)
+		return;
+
+	fdt_cpu_intc_cache.fdt = NULL;
+	fdt_cpu_intc_cache.n_entries = 0;
+
+	cpus_offset = fdt_path_offset(fdt, "/cpus");
+	if (cpus_offset < 0)
+		return;
+
+	fdt_for_each_subnode(cpu_offset, fdt, cpus_offset) {
+		if (n >= SBI_HARTMASK_MAX_BITS)
+			break;
+		if (fdt_parse_hart_id(fdt, cpu_offset, &hartid))
+			continue;
+
+		fdt_for_each_subnode(intc_offset, fdt, cpu_offset) {
+			if (!fdt_getprop(fdt, intc_offset,
+					 "interrupt-controller", NULL))
+				continue;
+			prop = fdt_getprop(fdt, intc_offset, "phandle", &len);
+			if (!prop || len < (int)sizeof(fdt32_t))
+				continue;
+			fdt_cpu_intc_cache.entries[n].phandle =
+				fdt32_to_cpu(*prop);
+			fdt_cpu_intc_cache.entries[n].hartid = hartid;
+			n++;
+			break;
+		}
+	}
+
+	fdt_cpu_intc_cache.fdt = fdt;
+	fdt_cpu_intc_cache.n_entries = n;
+}
+
+int fdt_parse_hart_id_by_phandle(const void *fdt, u32 phandle, u32 *hartid)
+{
+	unsigned int i;
+
+	if (!fdt)
+		return SBI_EINVAL;
+
+	fdt_cpu_intc_cache_build(fdt);
+
+	for (i = 0; i < fdt_cpu_intc_cache.n_entries; i++) {
+		if (fdt_cpu_intc_cache.entries[i].phandle == phandle) {
+			if (hartid)
+				*hartid = fdt_cpu_intc_cache.entries[i].hartid;
+			return 0;
+		}
+	}
+
+	return SBI_ENODEV;
+}
+
 int fdt_parse_cbom_block_size(const void *fdt, int cpu_offset, unsigned long *cbom_block_size)
 {
 	int len;
@@ -968,7 +1041,7 @@ int fdt_parse_aclint_node(const void *fdt, int nodeoffset,
 			  u32 *out_first_hartid, u32 *out_hart_count)
 {
 	const fdt32_t *val;
-	int i, rc, count, cpu_offset, cpu_intc_offset;
+	int i, rc, count;
 	u32 phandle, hwirq, hartid, first_hartid, last_hartid;
 	u32 match_hwirq = (for_timer) ? IRQ_M_TIMER : IRQ_M_SOFT;
 
@@ -1003,24 +1076,16 @@ int fdt_parse_aclint_node(const void *fdt, int nodeoffset,
 		phandle = fdt32_to_cpu(val[2 * i]);
 		hwirq = fdt32_to_cpu(val[(2 * i) + 1]);
 
-		cpu_intc_offset = fdt_node_offset_by_phandle(fdt, phandle);
-		if (cpu_intc_offset < 0)
+		if (match_hwirq != hwirq)
 			continue;
 
-		cpu_offset = fdt_parent_offset(fdt, cpu_intc_offset);
-		if (cpu_offset < 0)
+		if (fdt_parse_hart_id_by_phandle(fdt, phandle, &hartid))
 			continue;
 
-		rc = fdt_parse_hart_id(fdt, cpu_offset, &hartid);
-		if (rc)
-			continue;
-
-		if (match_hwirq == hwirq) {
-			if (hartid < first_hartid)
-				first_hartid = hartid;
-			if (hartid > last_hartid)
-				last_hartid = hartid;
-		}
+		if (hartid < first_hartid)
+			first_hartid = hartid;
+		if (hartid > last_hartid)
+			last_hartid = hartid;
 	}
 
 	if ((last_hartid >= first_hartid) && first_hartid != -1U) {
@@ -1056,29 +1121,19 @@ int fdt_parse_plmt_node(const void *fdt, int nodeoffset, unsigned long *plmt_bas
 
 	hcount = 0;
 	for (i = 0; i < (count / 2); i++) {
-		int cpu_offset, cpu_intc_offset;
-
 		phandle = fdt32_to_cpu(val[2 * i]);
 		hwirq = fdt32_to_cpu(val[2 * i + 1]);
 
-		cpu_intc_offset = fdt_node_offset_by_phandle(fdt, phandle);
-		if (cpu_intc_offset < 0)
+		if (hwirq != IRQ_M_TIMER)
 			continue;
 
-		cpu_offset = fdt_parent_offset(fdt, cpu_intc_offset);
-		if (cpu_offset < 0)
-			continue;
-
-		rc = fdt_parse_hart_id(fdt, cpu_offset, &hartid);
-
-		if (rc)
+		if (fdt_parse_hart_id_by_phandle(fdt, phandle, &hartid))
 			continue;
 
 		if (SBI_HARTMASK_MAX_BITS <= sbi_hartid_to_hartindex(hartid))
 			continue;
 
-		if (hwirq == IRQ_M_TIMER)
-			hcount++;
+		hcount++;
 	}
 
 	*hart_count = hcount;
@@ -1112,29 +1167,19 @@ int fdt_parse_plicsw_node(const void *fdt, int nodeoffset, unsigned long *plicsw
 
 	hcount = 0;
 	for (i = 0; i < (count / 2); i++) {
-		int cpu_offset, cpu_intc_offset;
-
 		phandle = fdt32_to_cpu(val[2 * i]);
 		hwirq = fdt32_to_cpu(val[2 * i + 1]);
 
-		cpu_intc_offset = fdt_node_offset_by_phandle(fdt, phandle);
-		if (cpu_intc_offset < 0)
+		if (hwirq != IRQ_M_SOFT)
 			continue;
 
-		cpu_offset = fdt_parent_offset(fdt, cpu_intc_offset);
-		if (cpu_offset < 0)
-			continue;
-
-		rc = fdt_parse_hart_id(fdt, cpu_offset, &hartid);
-
-		if (rc)
+		if (fdt_parse_hart_id_by_phandle(fdt, phandle, &hartid))
 			continue;
 
 		if (SBI_HARTMASK_MAX_BITS <= sbi_hartid_to_hartindex(hartid))
 			continue;
 
-		if (hwirq == IRQ_M_SOFT)
-			hcount++;
+		hcount++;
 	}
 
 	*hart_count = hcount;
