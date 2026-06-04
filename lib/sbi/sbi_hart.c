@@ -63,8 +63,17 @@ static void mstatus_init(struct sbi_scratch *scratch)
 		csr_write(CSR_MCOUNTEREN, -1);
 
 	/* All programmable counters will start running at runtime after S-mode request */
-	if (sbi_hart_priv_version(scratch) >= SBI_HART_PRIV_VER_1_11)
-		csr_write(CSR_MCOUNTINHIBIT, 0xFFFFFFF8);
+	if (sbi_hart_priv_version(scratch) >= SBI_HART_PRIV_VER_1_11) {
+		unsigned long inhibit_val = 0xFFFFFFF8;
+		/*
+		 * When Sscpuutil is available, keep cycle running
+		 * (clear mcountinhibit.CY) so that the frequency ratio
+		 * Dcycle/Dacttime remains valid.
+		 */
+		if (sbi_hart_has_extension(scratch, SBI_HART_EXT_SSCPUUTIL))
+			inhibit_val &= ~(1UL << 0);
+		csr_write(CSR_MCOUNTINHIBIT, inhibit_val);
+	}
 
 	/**
 	 * The mhpmeventn[h] CSR should be initialized with interrupt disabled
@@ -110,10 +119,35 @@ static void mstatus_init(struct sbi_scratch *scratch)
 		else
 			mstateen_val &= ~SMSTATEEN0_CTR;
 
+		if (sbi_hart_has_extension(scratch, SBI_HART_EXT_SSCPUUTIL))
+			mstateen_val |= SMSTATEEN0_CPUUTIL;
+		else
+			mstateen_val &= ~SMSTATEEN0_CPUUTIL;
+
 		csr_write64(CSR_MSTATEEN0, mstateen_val);
 		csr_write64(CSR_MSTATEEN1, SMSTATEEN_STATEN);
 		csr_write64(CSR_MSTATEEN2, SMSTATEEN_STATEN);
 		csr_write64(CSR_MSTATEEN3, SMSTATEEN_STATEN);
+	}
+
+	/*
+	 * For platforms with dedicated mcpuutilen (Sscpuutil-style),
+	 * enable both counters for S/U-mode access.
+	 * Directly probe the CSR since extension detection may not
+	 * cover all naming variants (sscpuutil vs sscpuutil).
+	 */
+	{
+		struct sbi_trap_info __trap = {0};
+		csr_read_allowed(CSR_MCPUUTILEN, &__trap);
+		if (!__trap.cause) {
+			csr_write(CSR_MCPUUTILEN, CPUUTILEN_ALL);
+			csr_write(CSR_SCPUUTILEN, CPUUTILEN_ALL);
+			sbi_printf("mcpuutilen/scpuutilen: set to 0x%lx (direct probe)\n",
+				   (unsigned long)CPUUTILEN_ALL);
+		} else {
+			sbi_printf("mcpuutilen: CSR not present (cause=%lu)\n",
+				   __trap.cause);
+		}
 	}
 
 	if (sbi_hart_has_extension(scratch, SBI_HART_EXT_SSSTATEEN)) {
@@ -715,6 +749,7 @@ const struct sbi_hart_ext_data sbi_hart_ext[] = {
 	__SBI_HART_EXT_DATA(smctr, SBI_HART_EXT_SMCTR),
 	__SBI_HART_EXT_DATA(ssctr, SBI_HART_EXT_SSCTR),
 	__SBI_HART_EXT_DATA(ssstateen, SBI_HART_EXT_SSSTATEEN),
+	__SBI_HART_EXT_DATA(sscpuutil, SBI_HART_EXT_SSCPUUTIL),
 };
 
 _Static_assert(SBI_HART_EXT_MAX == array_size(sbi_hart_ext),
@@ -959,6 +994,13 @@ __pmp_skip:
 	}
 
 	/* Counter overflow/filtering is not useful without mcounter/inhibit */
+	/* Detect if hart supports Sscpuutil (CPU utilization) */
+	csr_read_allowed(CSR_MACTTIME, &trap);
+	sbi_printf("SSCPUUTIL: CSR_MACTTIME(0xb21) probe: trap.cause=%lu\n",
+		   trap.cause);
+	__check_ext_csr(SBI_HART_PRIV_VER_1_12,
+			CSR_MACTTIME, SBI_HART_EXT_SSCPUUTIL);
+
 	/* Detect if hart supports sscofpmf */
 	__check_ext_csr(SBI_HART_PRIV_VER_1_11,
 			CSR_SCOUNTOVF, SBI_HART_EXT_SSCOFPMF);

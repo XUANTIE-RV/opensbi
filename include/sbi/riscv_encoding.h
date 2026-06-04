@@ -265,6 +265,10 @@
 #define CSR_CYCLE			0xc00
 #define CSR_TIME			0xc01
 #define CSR_INSTRET			0xc02
+
+/* Sscpuutil: CPU active time counter (address TBD, using placeholder) */
+#define CSR_ACTTIME			0xc31
+#define CSR_ACTTIMEH			0xcb1
 #define CSR_HPMCOUNTER3			0xc03
 #define CSR_HPMCOUNTER4			0xc04
 #define CSR_HPMCOUNTER5			0xc05
@@ -612,6 +616,12 @@
 #define CSR_MHPMCOUNTER29		0xb1d
 #define CSR_MHPMCOUNTER30		0xb1e
 #define CSR_MHPMCOUNTER31		0xb1f
+
+/* Sscpuutil: M-mode CPU active time counter (address TBD, using placeholder) */
+#define CSR_MACTTIME			0xb31
+#define CSR_MACTTIMEH			0xbb1
+#define CSR_MCPUUTILEN			0x320
+#define CSR_SCPUUTILEN			0x120
 #define CSR_MCYCLEH			0xb80
 #define CSR_MINSTRETH			0xb82
 #define CSR_MHPMCOUNTER3H		0xb83
@@ -827,6 +837,14 @@
 #define SMSTATEEN0_HSENVCFG		(_ULL(1) << SMSTATEEN0_HSENVCFG_SHIFT)
 #define SMSTATEEN_STATEN_SHIFT		63
 #define SMSTATEEN_STATEN		(_ULL(1) << SMSTATEEN_STATEN_SHIFT)
+/* Sscpuutil: acttime access control (bit position TBD) */
+#define SMSTATEEN0_CPUUTIL_SHIFT	55
+#define SMSTATEEN0_CPUUTIL		(_ULL(1) << SMSTATEEN0_CPUUTIL_SHIFT)
+
+/* Sscpuutil mcpuutilen enable bits */
+#define CPUUTILEN_CORECYC			(1UL << 0)
+#define CPUUTILEN_ACTTIME			(1UL << 1)
+#define CPUUTILEN_ALL			(CPUUTILEN_CORECYC | CPUUTILEN_ACTTIME)
 
 /* ===== Instruction Encodings ===== */
 
