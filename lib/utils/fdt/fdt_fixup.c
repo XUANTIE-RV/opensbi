@@ -9,6 +9,7 @@
  */
 
 #include <libfdt.h>
+#include <sbi/riscv_asm.h>
 #include <sbi/sbi_console.h>
 #include <sbi/sbi_domain.h>
 #include <sbi/sbi_math.h>
@@ -106,6 +107,134 @@ int fdt_add_cpu_idle_states(void *fdt, const struct sbi_cpu_idle_state *state)
 	return 0;
 }
 
+struct isa_ext_validate_entry {
+	const char *name;
+	bool (*validate)(void *fdt, int cpu_offset);
+};
+
+static bool isa_ext_h_validate(void *fdt, int cpu_offset)
+{
+	(void)fdt;
+	(void)cpu_offset;
+	return misa_extension_imp('H');
+}
+
+static bool isa_ext_zicbom_validate(void *fdt, int cpu_offset)
+{
+	unsigned long block_size;
+	return fdt_parse_cbom_block_size(fdt, cpu_offset, &block_size) == 0;
+}
+
+static const struct isa_ext_validate_entry isa_ext_validators[] = {
+	{ "h", isa_ext_h_validate },
+	{ "zicbom", isa_ext_zicbom_validate },
+};
+
+static bool isa_ext_is_valid(const char *name, void *fdt, int cpu_offset)
+{
+	for (int i = 0; i < (int)array_size(isa_ext_validators); i++) {
+		if (sbi_strcmp(name, isa_ext_validators[i].name) == 0)
+			return isa_ext_validators[i].validate(fdt, cpu_offset);
+	}
+	return true;
+}
+
+/*
+ * Fix up CPU ISA properties based on MISA and extension validation.
+ * Remove single-letter extensions not present in MISA, and multi-letter
+ * extensions that fail validation (e.g. missing required DT properties).
+ *
+ * Assumes all harts have the same MISA value (homogeneous system).
+ */
+static void fdt_fixup_cpu_isa(void *fdt, int cpu_offset)
+{
+	const char *isa;
+	int len, i, j;
+	char new_isa[256];
+
+	/* Fix riscv,isa property */
+	isa = fdt_getprop(fdt, cpu_offset, "riscv,isa", &len);
+	if (isa && len > 0) {
+		j = 0;
+
+		/* Copy "rv32" or "rv64" prefix */
+		for (i = 0; i < len - 1 && i < 4; i++)
+			new_isa[j++] = isa[i];
+
+		for (; i < len - 1 && j < (int)sizeof(new_isa) - 1; i++) {
+			char c = isa[i];
+
+			if (c == '_') {
+				/* Multi-letter extensions: validate each token */
+				while (i < len - 1) {
+					const char *tok = isa + i + 1;
+					int tok_len = 0;
+
+					while (i + 1 + tok_len < len - 1 && tok[tok_len] != '_')
+						tok_len++;
+
+					char name[64];
+					if (tok_len > 0 && tok_len < (int)sizeof(name)) {
+						sbi_memcpy(name, tok, tok_len);
+						name[tok_len] = '\0';
+						if (isa_ext_is_valid(name, fdt, cpu_offset)) {
+							new_isa[j++] = '_';
+							sbi_memcpy(new_isa + j, tok, tok_len);
+							j += tok_len;
+						} else
+							sbi_printf("fdt: ISA fixup: removed \"%s\" (validation failed)\n", name);
+					}
+					i += 1 + tok_len;
+				}
+				break;
+			} else if (c >= 'a' && c <= 'z') {
+				if (misa_extension_imp(c - 'a' + 'A'))
+					new_isa[j++] = c;
+				else
+					sbi_printf("fdt: ISA fixup: removed '%c' (MISA bit %d not set)\n", c, c - 'a');
+			}
+		}
+		new_isa[j] = '\0';
+
+		if (sbi_strcmp(new_isa, isa) != 0)
+			fdt_setprop_string(fdt, cpu_offset, "riscv,isa", new_isa);
+	}
+
+	/* Fix riscv,isa-extensions property (stringlist) */
+	isa = fdt_getprop(fdt, cpu_offset, "riscv,isa-extensions", &len);
+	if (isa && len > 0) {
+		char new_ext[512];
+		int new_len = 0;
+
+		i = 0;
+		while (i < len) {
+			const char *entry = isa + i;
+			int entry_len = sbi_strlen(entry);
+
+			if (entry_len == 1 && entry[0] >= 'a' && entry[0] <= 'z' && !misa_extension_imp(entry[0] - 'a' + 'A')) {
+				sbi_printf("fdt: ISA ext fixup: removed \"%s\" (MISA bit %d not set)\n", entry, entry[0] - 'a');
+				i += entry_len + 1;
+				continue;
+			}
+
+			if (entry_len > 1 && !isa_ext_is_valid(entry, fdt, cpu_offset)) {
+				sbi_printf("fdt: ISA ext fixup: removed \"%s\" (validation failed)\n", entry);
+				i += entry_len + 1;
+				continue;
+			}
+
+			if (new_len + entry_len + 1 <= (int)sizeof(new_ext)) {
+				sbi_memcpy(new_ext + new_len, entry, entry_len + 1);
+				new_len += entry_len + 1;
+			}
+			i += entry_len + 1;
+		}
+
+		if (new_len != len)
+			fdt_setprop(fdt, cpu_offset, "riscv,isa-extensions", new_ext, new_len);
+	}
+}
+
 void fdt_cpu_fixup(void *fdt)
 {
 	struct sbi_scratch *scratch = sbi_scratch_thishart_ptr();
@@ -152,6 +281,8 @@ void fdt_cpu_fixup(void *fdt)
 		    !mmu_type || !len)
 			fdt_setprop_string(fdt, cpu_offset, "status",
 					   "disabled");
+
+		fdt_fixup_cpu_isa(fdt, cpu_offset);
 
 		if (!emulated_zicntr)
 			continue;
