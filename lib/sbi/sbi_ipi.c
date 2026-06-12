@@ -136,6 +136,7 @@ int sbi_ipi_send_many(ulong hmask, ulong hbase, u32 event, void *data)
 
 	if (hbase != -1UL) {
 		struct sbi_hartmask tmp_mask = { 0 };
+		struct sbi_hartmask domain_mask;
 		int count = sbi_popcount(hmask);
 
 		for (i = hbase; hmask; i++, hmask >>= 1) {
@@ -143,10 +144,16 @@ int sbi_ipi_send_many(ulong hmask, ulong hbase, u32 event, void *data)
 				sbi_hartmask_set_hartid(i, &tmp_mask);
 		}
 
-		sbi_hartmask_and(&target_mask, &target_mask, &tmp_mask);
+		/* Validate hartids against domain assignment, not HSM state */
+		rc = sbi_domain_get_assigned_hartmask(dom, &domain_mask);
+		if (rc)
+			return rc;
 
-		if (sbi_hartmask_weight(&target_mask) != count)
+		sbi_hartmask_and(&domain_mask, &domain_mask, &tmp_mask);
+		if (sbi_hartmask_weight(&domain_mask) != count)
 			return SBI_EINVAL;
+
+		sbi_hartmask_and(&target_mask, &target_mask, &tmp_mask);
 	}
 
 	/* Send IPIs */
