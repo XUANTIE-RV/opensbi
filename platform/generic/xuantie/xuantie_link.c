@@ -45,7 +45,9 @@ int xuantie_link_pmu_device_init(void)
 				       XUANTIE_LINK_PMU_CNT_BITMAP,
 				       (void *)addr + XUANTIE_LINK_PMU_HPCPHAUTHCR);
 			writeq(XUANTIE_LINK_PMU_CNT_BITMAP, (void *)addr + XUANTIE_LINK_PMU_HPCPMAUTHCR);
-			writeq(XUANTIE_LINK_PMU_L3AUTHCR_ALLAU, (void *)addr + XUANTIE_LINK_PMU_L3MAUTHCR);
+			writeq(XUANTIE_LINK_PMU_L3AUTHCR_ALLAU |
+			       XUANTIE_LINK_PMU_L3AUTHCR_L3CBQ_CCAU,
+			       (void *)addr + XUANTIE_LINK_PMU_L3MAUTHCR);
 			writeq(0, (void *)addr + XUANTIE_LINK_PMU_HPCPINHIBIT);
 			found = true;
 		}
