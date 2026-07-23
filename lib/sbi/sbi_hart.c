@@ -518,6 +518,41 @@ static int hart_mhpm_get_allowed_bits(void)
 	return num_bits;
 }
 
+struct hart_ext_validate_entry {
+	enum sbi_hart_extensions ext;
+	bool (*validate)(void);
+};
+
+static bool hart_ext_smepmp_validate(void)
+{
+	struct sbi_trap_info trap = {0};
+	unsigned long oldval;
+
+	oldval = csr_read_allowed(CSR_MSECCFG, &trap);
+	if (trap.cause)
+		return false;
+
+	csr_write_allowed(CSR_MSECCFG, &trap, oldval | MSECCFG_RLB);
+	if (trap.cause)
+		return false;
+
+	return (csr_swap(CSR_MSECCFG, oldval) & MSECCFG_RLB) == MSECCFG_RLB;
+}
+
+static const struct hart_ext_validate_entry hart_ext_validators[] = {
+	{ SBI_HART_EXT_SMEPMP, hart_ext_smepmp_validate },
+};
+
+static void hart_ext_validate(struct sbi_hart_features *hfeatures)
+{
+	for (int i = 0; i < (int)array_size(hart_ext_validators); i++) {
+		const struct hart_ext_validate_entry *v = &hart_ext_validators[i];
+
+		if (__test_bit(v->ext, hfeatures->extensions) && !v->validate())
+			__sbi_hart_update_extension(hfeatures, v->ext, false);
+	}
+}
+
 static int hart_detect_features(struct sbi_scratch *scratch, bool cold_boot)
 {
 	struct sbi_trap_info trap = {0};
@@ -723,6 +758,9 @@ __pmp_skip:
 	if (hfeatures->mhpm_mask)
 		__sbi_hart_update_extension(hfeatures,
 					SBI_HART_EXT_ZIHPM, true);
+
+	/* Validate DT-claimed extensions against actual hardware */
+	hart_ext_validate(hfeatures);
 
 	/* Mark hart feature detection done */
 	hfeatures->detected = true;
