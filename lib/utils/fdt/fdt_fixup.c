@@ -11,6 +11,7 @@
 #include <libfdt.h>
 #include <sbi/riscv_asm.h>
 #include <sbi/sbi_console.h>
+#include <sbi/sbi_csr_detect.h>
 #include <sbi/sbi_domain.h>
 #include <sbi/sbi_math.h>
 #include <sbi/sbi_hart.h>
@@ -19,6 +20,7 @@
 #include <sbi/sbi_error.h>
 #include <sbi/sbi_heap.h>
 #include <sbi/sbi_timer.h>
+#include <sbi/sbi_trap.h>
 #include <sbi_utils/fdt/fdt_fixup.h>
 #include <sbi_utils/fdt/fdt_pmu.h>
 #include <sbi_utils/fdt/fdt_helper.h>
@@ -126,8 +128,29 @@ static bool isa_ext_zicbom_validate(void *fdt, int cpu_offset)
 	return fdt_parse_cbom_block_size(fdt, cpu_offset, &block_size) == 0;
 }
 
+static bool isa_ext_smepmp_validate(void *fdt, int cpu_offset)
+{
+	struct sbi_trap_info trap = {0};
+	unsigned long oldval;
+
+	(void)fdt;
+	(void)cpu_offset;
+
+	oldval = csr_read_allowed(CSR_MSECCFG, &trap);
+	if (trap.cause)
+		return false;
+
+	/* Probe Smepmp-specific RLB bit via write-readback */
+	csr_write_allowed(CSR_MSECCFG, &trap, oldval | MSECCFG_RLB);
+	if (trap.cause)
+		return false;
+
+	return (csr_swap(CSR_MSECCFG, oldval) & MSECCFG_RLB) == MSECCFG_RLB;
+}
+
 static const struct isa_ext_validate_entry isa_ext_validators[] = {
 	{ "h", isa_ext_h_validate },
+	{ "smepmp", isa_ext_smepmp_validate },
 	{ "zicbom", isa_ext_zicbom_validate },
 };
 
