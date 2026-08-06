@@ -15,6 +15,7 @@
 #include <xuantie/xuantie_link.h>
 #include <xuantie/xuantie_pmp_ext.h>
 #include <xuantie/xuantie_pmu.h>
+#include <xuantie/xuantie_rnmi.h>
 
 static u32 gquirk = 0;
 
@@ -55,12 +56,17 @@ static int xuantie_dummy_platform_init(const void *fdt, int nodeoff,
 	generic_platform_ops.early_init = xuantie_early_init;
 	generic_platform_ops.final_init = xuantie_final_init;
 
+	if (gquirk & QUIRK_XUANTIE_RNMI) {
+		generic_platform_ops.smrnmi_handlers_init = xuantie_smrnmi_handlers_init;
+		generic_platform_ops.rnmi_handler = xuantie_rnmi_handler;
+	}
+
 	return 0;
 }
 
 static const struct xuantie_generic_quirks xuantie_quirks = {
 	.quirk = QUIRK_XUANTIE_PMC | QUIRK_XUANTIE_LINK | QUIRK_XUANTIE_PMP_EXT |
-		 QUIRK_XUANTIE_PMU,
+		 QUIRK_XUANTIE_PMU | QUIRK_XUANTIE_RNMI,
 };
 
 static const struct xuantie_generic_quirks xuantie_pmc_quirks = {
@@ -79,11 +85,16 @@ static const struct xuantie_generic_quirks xuantie_pmu_quirks = {
 	.quirk = QUIRK_XUANTIE_PMU,
 };
 
+static const struct xuantie_generic_quirks xuantie_rnmi_quirks = {
+	.quirk = QUIRK_XUANTIE_RNMI,
+};
+
 static const struct fdt_match xuantie_dummy_match[] = {
 	{ .compatible = "xuantie,dummy", .data = &xuantie_quirks },
 	{ .compatible = "xuantie,pmc", .data = &xuantie_pmc_quirks },
 	{ .compatible = "xuantie,link", .data = &xuantie_link_quirks },
 	{ .compatible = "xuantie,pmu", .data = &xuantie_pmu_quirks },
+	{ .compatible = "xuantie,rnmi", .data = &xuantie_rnmi_quirks },
 	{ .compatible = "riscv-virtio",  .data = &xuantie_pmp_ext_quirks }, // qemu debug
 	{ },
 };
