@@ -60,15 +60,8 @@ void xuantie_smrnmi_handlers_init(void (*rnmi_handler)(void),
 		sbi_printf("xuantie: RNME handler %p != RNMI base + 2K\n",
 			   rnme_handler);
 
-	/*
-	 * TODO: program the xuantie rnmi_addr_base register.
-	 *
-	 * The required 4K-aligned asm layout (RNMI entry at base, double-trap
-	 * at base + 2K) is not in place yet. Once it is, program the base:
-	 *
-	 *   csr_write(CSR_MISELECT, XUANTIE_ISEL_RNMI_ADDR_BASE);
-	 *   csr_write(CSR_MIREG, base & XUANTIE_RNMI_ADDR_ALIGN_MASK);
-	 */
+	csr_write(CSR_MISELECT, XUANTIE_ISEL_RNMI_ADDR_BASE);
+	csr_write(CSR_MIREG, base & XUANTIE_RNMI_ADDR_ALIGN_MASK);
 }
 
 int xuantie_rnmi_handler(struct sbi_trap_context *tcntx)

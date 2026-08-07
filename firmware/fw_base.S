@@ -791,7 +791,14 @@ _trap_handler_hyp:
 	mret
 
 	.section .entry, "ax", %progbits
-	.align 3
+	/*
+	 * RNMI entry must be 4K-aligned: platforms such as xuantie program
+	 * this address into an NMI-vector base register whose low 12 bits are
+	 * hardwired to 0, and derive the double-trap (RNME) entry from
+	 * base + 2K. Keep _trap_rnmi_handler within 2K so that
+	 * _trap_rnme_handler lands exactly at base + 0x800.
+	 */
+	.align 12
 	.globl _trap_rnmi_handler
 _trap_rnmi_handler:
 	/*
@@ -820,6 +827,16 @@ _trap_rnmi_handler:
 
 	/* mnret - return from NMI (SMRNMI extension) */
 	.word 0x70200073
+
+	/*
+	 * RNME / double-trap entry, fixed at _trap_rnmi_handler + 2K.
+	 * RNME is taken as a regular M-mode trap with NMIE=0, so reuse the
+	 * generic trap handler.
+	 */
+	.align 11
+	.globl _trap_rnme_handler
+_trap_rnme_handler:
+	j	_trap_handler
 
 	.section .entry, "ax", %progbits
 	.align 3
