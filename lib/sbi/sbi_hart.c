@@ -915,14 +915,18 @@ static int hart_detect_features(struct sbi_scratch *scratch)
 		const struct sbi_platform *plat = sbi_platform_thishart_ptr();
 		const struct sbi_platform_operations *ops = sbi_platform_ops(plat);
 		extern void _trap_rnmi_handler(void);
-		extern void _trap_handler(void);
+		extern void _trap_rnme_handler(void);
 
 		if (!ops || !ops->smrnmi_handlers_init)
 			sbi_panic("Smrnmi detected, but platform lacks smrnmi_handlers_init callback\n");
 
-		/* Reuse _trap_handler for the RNME slot since RNME is taken
-		 * as a regular M-mode trap with NMIE=0. */
-		ops->smrnmi_handlers_init(_trap_rnmi_handler, _trap_handler);
+		/*
+		 * _trap_rnme_handler is placed exactly 2K above
+		 * _trap_rnmi_handler in fw_base.S; RNME is taken as a regular
+		 * M-mode trap with NMIE=0. Platforms (e.g. xuantie) that derive
+		 * the double-trap vector from the NMI base rely on this layout.
+		 */
+		ops->smrnmi_handlers_init(_trap_rnmi_handler, _trap_rnme_handler);
 
 		/* Initialize MNSCRATCH for the RNMI handler */
 		csr_write(CSR_MNSCRATCH, scratch);
