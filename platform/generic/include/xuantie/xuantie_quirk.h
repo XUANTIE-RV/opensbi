@@ -10,6 +10,7 @@
 #define QUIRK_XUANTIE_PMP_EXT BIT(2)
 #define QUIRK_XUANTIE_PMU     BIT(3)
 #define QUIRK_XUANTIE_RNMI    BIT(4)
+#define QUIRK_XUANTIE_PMA     BIT(5)
 
 struct xuantie_generic_quirks {
 	u32 quirk;
